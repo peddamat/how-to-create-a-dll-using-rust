@@ -3,5 +3,7 @@ extern {
 }
 
 fn main() {
-    println!("2+2={}", add(2,2));
+    unsafe {
+        println!("2+2={}", add(2,2));
+    }
 }
