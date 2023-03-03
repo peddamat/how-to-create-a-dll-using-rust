@@ -1,4 +1,5 @@
 use windows::{ Win32::Foundation::*, Win32::System::SystemServices::*, };
+use windows::{ core::*, Win32::UI::WindowsAndMessaging::MessageBoxA, };
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
@@ -9,12 +10,34 @@ extern "system" fn DllMain(
     -> bool
 {
     match call_reason {
-        DLL_PROCESS_ATTACH => (),
-        DLL_PROCESS_DETACH => (),
+        DLL_PROCESS_ATTACH => attach(),
+        DLL_PROCESS_DETACH => detach(),
         _ => ()
     }
 
     true
+}
+
+fn attach() {
+    unsafe {
+        // Create a message box
+        MessageBoxA(HWND(0),
+	        s!("ZOMG!"),
+	        s!("hello.dll"),
+	        Default::default()
+		);
+    };
+}
+
+fn detach() {
+    unsafe {
+        // Create a message box
+        MessageBoxA(HWND(0),
+	        s!("GOODBYE!"),
+	        s!("hello.dll"),
+	        Default::default()
+		);
+    };
 }
 
 #[no_mangle]
