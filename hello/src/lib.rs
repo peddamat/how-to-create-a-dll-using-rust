@@ -1,5 +1,6 @@
 use windows::{ Win32::Foundation::*, Win32::System::SystemServices::*, };
 use windows::{ core::*, Win32::UI::WindowsAndMessaging::MessageBoxA, };
+use windows::Win32::System::Threading::GetCurrentProcessId;
 
 #[no_mangle]
 #[allow(non_snake_case, unused_variables)]
@@ -20,9 +21,10 @@ extern "system" fn DllMain(
 
 fn attach() {
     unsafe {
-        // Create a message box
+		let pid = GetCurrentProcessId();
+
         MessageBoxA(HWND(0),
-	        s!("ZOMG!"),
+	        PCSTR(std::format!("Hello from process: {}!\0", pid).as_ptr()),
 	        s!("hello.dll"),
 	        Default::default()
 		);
