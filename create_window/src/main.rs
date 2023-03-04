@@ -1,6 +1,9 @@
 use windows::{
-    core::*, Win32::Foundation::*, Win32::Graphics::Gdi::ValidateRect,
-    Win32::System::LibraryLoader::GetModuleHandleA, Win32::UI::WindowsAndMessaging::*,
+    core::*,
+    Win32::Foundation::*,
+    Win32::Graphics::Gdi::*,
+    Win32::System::LibraryLoader::GetModuleHandleA,
+    Win32::UI::WindowsAndMessaging::*,
 };
 
 fn main() -> Result<()> {
@@ -52,8 +55,19 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
     unsafe {
         match message {
             WM_PAINT => {
-                println!("WM_PAINT");
-                ValidateRect(window, None);
+                let mut msg =  String::from("ZOMG!");
+                let mut ps = PAINTSTRUCT::default();
+                let psp = &mut ps as *mut PAINTSTRUCT;
+                let rectp = &mut ps.rcPaint as *mut RECT;
+                let hdc = BeginPaint(window, psp);
+                let brush = CreateSolidBrush(COLORREF(0x0000F0F0));
+                FillRect(hdc, &ps.rcPaint, brush);
+                DrawTextA(hdc,
+                    msg.as_bytes_mut(),
+                    rectp,
+                    DT_SINGLELINE | DT_CENTER | DT_VCENTER
+                );
+                EndPaint(window, &ps);
                 LRESULT(0)
             }
             WM_DESTROY => {
