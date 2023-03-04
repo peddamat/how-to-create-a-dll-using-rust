@@ -2,6 +2,7 @@
 
 members = [
     "hello",
-    "hello_runner",
-    "create_window"
+    # "hello_runner",
+    "create_window",
+    "hello_inject"
 ]
