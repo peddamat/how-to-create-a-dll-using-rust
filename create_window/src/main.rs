@@ -6,6 +6,8 @@ use windows::{
     Win32::UI::WindowsAndMessaging::*,
 };
 
+use std::mem::transmute;
+
 fn main() -> Result<()> {
     unsafe {
         let instance = GetModuleHandleA(None)?;
@@ -26,7 +28,7 @@ fn main() -> Result<()> {
         let atom = RegisterClassA(&wc);
         debug_assert!(atom != 0);
 
-        CreateWindowExA(
+        let handle = CreateWindowExA(
             WINDOW_EX_STYLE::default(),
             window_class,
             s!("This is a sample window"),
@@ -40,6 +42,9 @@ fn main() -> Result<()> {
             instance,
             None,
         );
+
+        let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, subclass_proc as isize);
+        let prev_wnd_proc = transmute::<isize, WNDPROC>(result);
 
         let mut message = MSG::default();
 
