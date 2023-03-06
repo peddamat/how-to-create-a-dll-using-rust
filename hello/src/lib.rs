@@ -10,6 +10,8 @@ use windows::{
 use std::mem::{transmute, MaybeUninit};
 use std::io::{Result, Error, ErrorKind};
 
+use log::{LevelFilter, info};
+
 static mut PREV_WNDPROC: WNDPROC = None;
 
 #[no_mangle]
@@ -31,6 +33,8 @@ extern "system" fn DllMain(
 
 fn attach() {
     unsafe {
+        simple_logging::log_to_file("C:\\Users\\me\\source\\blog_qa\\hello.dll.log", LevelFilter::Info);
+
         let handle = find_window_by_pid(GetCurrentProcessId()).unwrap();
         let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as isize);
         PREV_WNDPROC = transmute::<isize, WNDPROC>(result);
@@ -53,6 +57,7 @@ extern "system" fn wnd_proc(
     unsafe {
         match message {
             WM_PAINT => {
+                info!("WM_PAINT");
                 let mut msg =  String::from("ZOMG!");
                 let mut ps = PAINTSTRUCT::default();
                 let psp = &mut ps as *mut PAINTSTRUCT;
@@ -69,12 +74,14 @@ extern "system" fn wnd_proc(
                 return LRESULT(0);
             }
             WM_WINDOWPOSCHANGING => {
+                info!("WM_WINDOWPOSCHANGING");
                 let data = lparam.0 as *mut WINDOWPOS;
                 let data = data.as_mut().unwrap();
                 data.flags |= SWP_NOSIZE | SWP_NOMOVE;
                 return LRESULT(0);
             }
             WM_NCDESTROY => {
+                info!("WM_NCDESTROY");
                 let result = transmute::<WNDPROC, isize>(PREV_WNDPROC);
                 SetWindowLongPtrW(window, GWLP_WNDPROC, result);
                 return DefWindowProcA(window, message, wparam, lparam);
