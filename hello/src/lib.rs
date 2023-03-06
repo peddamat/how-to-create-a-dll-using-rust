@@ -10,7 +10,7 @@ use windows::{
 use std::mem::{transmute, MaybeUninit};
 use std::io::{Result, Error, ErrorKind};
 
-use log::{LevelFilter, info};
+use log::{LevelFilter, info, error};
 
 static mut PREV_WNDPROC: WNDPROC = None;
 
@@ -25,27 +25,41 @@ extern "system" fn DllMain(
     match call_reason {
         DLL_PROCESS_ATTACH => attach(),
         DLL_PROCESS_DETACH => detach(),
-        _ => ()
+        _ => true
     }
-
-    true
 }
 
-fn attach() {
+fn attach() -> bool {
     unsafe {
         simple_logging::log_to_file("C:\\Users\\me\\source\\blog_qa\\hello.dll.log", LevelFilter::Info);
 
-        let handle = find_window_by_pid(GetCurrentProcessId()).unwrap();
-        let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as isize);
-        PREV_WNDPROC = transmute::<isize, WNDPROC>(result);
+        match find_window_by_pid(GetCurrentProcessId()) {
+            Ok(handle) => {
+                let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as isize);
+                PREV_WNDPROC = transmute::<isize, WNDPROC>(result);
+                return true;
+            },
+            Err(e) => {
+                error!("Error attaching hello.dll: {:?}", e);
+            }
+        };
     };
+    false
 }
 
-fn detach() {
+fn detach() -> bool {
     unsafe {
-        let handle = find_window_by_pid(GetCurrentProcessId()).unwrap();
-        SetWindowLongPtrW(handle, GWLP_WNDPROC, transmute::<WNDPROC, isize>(PREV_WNDPROC));
+        match find_window_by_pid(GetCurrentProcessId()) {
+            Ok(handle) => {
+                SetWindowLongPtrW(handle, GWLP_WNDPROC, transmute::<WNDPROC, isize>(PREV_WNDPROC));
+                return true;
+            },
+            Err(e) => {
+                error!("Error detaching hello.dll: {:?}", e);
+            }
+        };
     };
+    false
 }
 
 extern "system" fn wnd_proc(
