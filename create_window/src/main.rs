@@ -8,6 +8,8 @@ use windows::{
 
 use std::mem::transmute;
 
+static mut PREV_WNDPROC: WNDPROC = None;
+
 fn main() -> Result<()> {
     unsafe {
         let instance = GetModuleHandleA(None)?;
@@ -43,8 +45,8 @@ fn main() -> Result<()> {
             None,
         );
 
-        let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, subclass_proc as isize);
-        let prev_wnd_proc = transmute::<isize, WNDPROC>(result);
+        let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as isize);
+        PREV_WNDPROC = transmute::<isize, WNDPROC>(result);
 
         let mut message = MSG::default();
 
@@ -57,6 +59,29 @@ fn main() -> Result<()> {
 }
 
 extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    unsafe {
+        match message {
+            WM_PAINT => {
+                println!("WM_PAINT");
+                ValidateRect(window, None);
+                LRESULT(0)
+            }
+            WM_DESTROY => {
+                println!("WM_DESTROY");
+                PostQuitMessage(0);
+                LRESULT(0)
+            }
+            _ => DefWindowProcA(window, message, wparam, lparam),
+        }
+    }
+}
+
+extern "system" fn wnd_proc(
+	window: HWND,
+	message: u32,
+	wparam: WPARAM,
+	lparam: LPARAM,
+) -> LRESULT {
     unsafe {
         match message {
             WM_PAINT => {
@@ -73,20 +98,27 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
                     DT_SINGLELINE | DT_CENTER | DT_VCENTER
                 );
                 EndPaint(window, &ps);
-                LRESULT(0)
+                return LRESULT(0);
             }
             WM_WINDOWPOSCHANGING => {
                 let data = lparam.0 as *mut WINDOWPOS;
                 let data = data.as_mut().unwrap();
                 data.flags |= SWP_NOSIZE | SWP_NOMOVE;
-                LRESULT(0)
+                 return LRESULT(0);
             }
             WM_DESTROY => {
                 println!("WM_DESTROY");
                 PostQuitMessage(0);
-                LRESULT(0)
+                return LRESULT(0);
             }
-            _ => DefWindowProcA(window, message, wparam, lparam),
+            WM_NCDESTROY => {
+                println!("WM_NCDESTROY");
+                let result = transmute::<WNDPROC, isize>(PREV_WNDPROC);
+                SetWindowLongPtrW(window, GWLP_WNDPROC, result);
+                return DefWindowProcA(window, message, wparam, lparam);
+            }
+            _ => ()
         }
+        CallWindowProcW(PREV_WNDPROC, window, message, wparam, lparam)
     }
 }
