@@ -2,13 +2,9 @@ use windows::{
     core::*,
     Win32::Foundation::*,
     Win32::Graphics::Gdi::*,
-    Win32::System::LibraryLoader::GetModuleHandleA,
+    Win32::System::LibraryLoader::{GetModuleHandleA, LoadLibraryA},
     Win32::UI::WindowsAndMessaging::*,
 };
-
-use std::mem::transmute;
-
-static mut PREV_WNDPROC: WNDPROC = None;
 
 fn main() -> Result<()> {
     unsafe {
@@ -30,7 +26,7 @@ fn main() -> Result<()> {
         let atom = RegisterClassA(&wc);
         debug_assert!(atom != 0);
 
-        let handle = CreateWindowExA(
+        CreateWindowExA(
             WINDOW_EX_STYLE::default(),
             window_class,
             s!("This is a sample window"),
@@ -45,8 +41,9 @@ fn main() -> Result<()> {
             None,
         );
 
-        let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as isize);
-        PREV_WNDPROC = transmute::<isize, WNDPROC>(result);
+        LoadLibraryA(PCSTR("hello.dll\0".as_ptr()));
+        //let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as isize);
+        //PREV_WNDPROC = transmute::<isize, WNDPROC>(result);
 
         let mut message = MSG::default();
 
@@ -73,52 +70,5 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
             }
             _ => DefWindowProcA(window, message, wparam, lparam),
         }
-    }
-}
-
-extern "system" fn wnd_proc(
-	window: HWND,
-	message: u32,
-	wparam: WPARAM,
-	lparam: LPARAM,
-) -> LRESULT {
-    unsafe {
-        match message {
-            WM_PAINT => {
-                let mut msg =  String::from("ZOMG!");
-                let mut ps = PAINTSTRUCT::default();
-                let psp = &mut ps as *mut PAINTSTRUCT;
-                let rectp = &mut ps.rcPaint as *mut RECT;
-                let hdc = BeginPaint(window, psp);
-                let brush = CreateSolidBrush(COLORREF(0x0000F0F0));
-                FillRect(hdc, &ps.rcPaint, brush);
-                DrawTextA(hdc,
-                    msg.as_bytes_mut(),
-                    rectp,
-                    DT_SINGLELINE | DT_CENTER | DT_VCENTER
-                );
-                EndPaint(window, &ps);
-                return LRESULT(0);
-            }
-            WM_WINDOWPOSCHANGING => {
-                let data = lparam.0 as *mut WINDOWPOS;
-                let data = data.as_mut().unwrap();
-                data.flags |= SWP_NOSIZE | SWP_NOMOVE;
-                 return LRESULT(0);
-            }
-            WM_DESTROY => {
-                println!("WM_DESTROY");
-                PostQuitMessage(0);
-                return LRESULT(0);
-            }
-            WM_NCDESTROY => {
-                println!("WM_NCDESTROY");
-                let result = transmute::<WNDPROC, isize>(PREV_WNDPROC);
-                SetWindowLongPtrW(window, GWLP_WNDPROC, result);
-                return DefWindowProcA(window, message, wparam, lparam);
-            }
-            _ => ()
-        }
-        CallWindowProcW(PREV_WNDPROC, window, message, wparam, lparam)
     }
 }

@@ -3,6 +3,9 @@ name = "create_window"
 version = "0.0.0"
 edition = "2018"
 
+[dependencies]
+hello = { path = "../hello" }
+
 [dependencies.windows]
 version = "0.*"
 features = [
