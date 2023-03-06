@@ -70,6 +70,12 @@ extern "system" fn wndproc(window: HWND, message: u32, wparam: WPARAM, lparam: L
                 EndPaint(window, &ps);
                 LRESULT(0)
             }
+            WM_WINDOWPOSCHANGING => {
+                let data = lparam.0 as *mut WINDOWPOS;
+                let data = data.as_mut().unwrap();
+                data.flags |= SWP_NOSIZE | SWP_NOMOVE;
+                LRESULT(0)
+            }
             WM_DESTROY => {
                 println!("WM_DESTROY");
                 PostQuitMessage(0);
