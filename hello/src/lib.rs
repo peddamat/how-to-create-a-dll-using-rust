@@ -39,12 +39,8 @@ fn attach() {
 
 fn detach() {
     unsafe {
-        // Create a message box
-        MessageBoxA(HWND(0),
-	        s!("GOODBYE!"),
-	        s!("hello.dll"),
-	        Default::default()
-		);
+        let handle = find_window_by_pid(GetCurrentProcessId()).unwrap();
+        SetWindowLongPtrW(handle, GWLP_WNDPROC, transmute::<WNDPROC, isize>(PREV_WNDPROC));
     };
 }
 
