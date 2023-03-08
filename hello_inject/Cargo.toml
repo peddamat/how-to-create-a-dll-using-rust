@@ -6,3 +6,9 @@ edition = "2021"
 [dependencies]
 hello = { path = "../hello" }
 dll-syringe = "0.15.0"
+
+[dependencies.windows]
+version = "0.*"
+features = [
+    "Win32_UI_WindowsAndMessaging",
+]

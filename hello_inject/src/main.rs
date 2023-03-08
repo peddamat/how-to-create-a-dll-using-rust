@@ -1,16 +1,24 @@
-use dll_syringe::{Syringe, process::OwnedProcess};
-use std::{thread, time};
+use dll_syringe::{Syringe, process::*};
+use windows::{Win32::{UI::WindowsAndMessaging::{GetWindowThreadProcessId, FindWindowA}, Foundation::HWND}, core::PCSTR, s};
+use std::{thread, time, borrow::BorrowMut, mem::MaybeUninit};
 
 
 fn main() {
-    // find target process by name
-    let target_process =
-	    OwnedProcess::find_first_by_name("notepad.exe").expect("Couldn't find process, exiting!");
+    // find target process by .exe
+    // let target_process =
+	    // OwnedProcess::find_first_by_name("ttermpro.exe").expect("Couldn't find process, exiting!");
+
+    // find target process window handle
+    // let pid = find_pid_by_hwnd(HWND(0x00401B32));
+    // let target_process = OwnedProcess::from_pid(pid).unwrap();
+
+    // find target process by window title
+    let pid = find_pid_by_title(s!("Untitled - Notepad"));
+    let target_process = OwnedProcess::from_pid(pid).unwrap();
 
     // create a new syringe for the target process
     let syringe = Syringe::for_process(target_process);
 
-    // inject the payload into the target process
     let injected_payload = syringe.inject("target\\debug\\hello.dll").unwrap();
     println!("DLL injected successfully!");
 
@@ -25,4 +33,20 @@ fn main() {
         Ok(_) => println!("hello.dll ejected successfully."),
         Err(_) => println!("Couldn't find process, assuming it's closed and exiting gracefully!")
     }
+}
+
+fn find_pid_by_hwnd(hwnd: HWND) -> u32 {
+    let mut pid = MaybeUninit::<u32>::zeroed();
+    unsafe {
+        GetWindowThreadProcessId(hwnd, Some(pid.as_mut_ptr()));
+        return pid.assume_init();
+    };
+}
+
+pub fn find_pid_by_title(title: PCSTR) -> u32 {
+    let hwnd = unsafe {
+        FindWindowA(None, title)
+    };
+
+    return find_pid_by_hwnd(hwnd);
 }
