@@ -5,21 +5,29 @@ use std::{thread, time, borrow::BorrowMut, mem::MaybeUninit};
 
 fn main() {
     // find target process by .exe
-    // let target_process =
-	    // OwnedProcess::find_first_by_name("ttermpro.exe").expect("Couldn't find process, exiting!");
+    let target_process =
+	    OwnedProcess::find_first_by_name("ttermpro.exe").expect("Couldn't find process, exiting!");
 
     // find target process window handle
     // let pid = find_pid_by_hwnd(HWND(0x00401B32));
     // let target_process = OwnedProcess::from_pid(pid).unwrap();
 
     // find target process by window title
-    let pid = find_pid_by_title(s!("Untitled - Notepad"));
-    let target_process = OwnedProcess::from_pid(pid).unwrap();
+    // let pid = find_pid_by_title(s!("Untitled - Notepad"));
+    // let target_process = OwnedProcess::from_pid(pid).unwrap();
+
+   let dll_path = {
+        if OwnedProcess::is_x64(&target_process).unwrap() {
+            "target\\x86_64-pc-windows-msvc\\debug\\hello.dll"
+        } else {
+            "target\\i686-pc-windows-msvc\\debug\\hello.dll"
+        }
+    };
 
     // create a new syringe for the target process
     let syringe = Syringe::for_process(target_process);
 
-    let injected_payload = syringe.inject("target\\debug\\hello.dll").unwrap();
+    let injected_payload = syringe.inject(dll_path).expect("Architecture mismatch!");
     println!("DLL injected successfully!");
 
     // do something else
