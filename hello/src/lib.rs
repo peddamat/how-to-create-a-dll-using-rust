@@ -35,8 +35,8 @@ fn attach() -> bool {
 
         match find_window_by_pid(GetCurrentProcessId()) {
             Ok(handle) => {
-                let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as isize);
-                PREV_WNDPROC = transmute::<isize, WNDPROC>(result);
+                let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as _);
+                PREV_WNDPROC = transmute::<_, WNDPROC>(result);
                 return true;
             },
             Err(e) => {
@@ -51,7 +51,7 @@ fn detach() -> bool {
     unsafe {
         match find_window_by_pid(GetCurrentProcessId()) {
             Ok(handle) => {
-                SetWindowLongPtrW(handle, GWLP_WNDPROC, transmute::<WNDPROC, isize>(PREV_WNDPROC));
+                SetWindowLongPtrW(handle, GWLP_WNDPROC, transmute::<WNDPROC, _>(PREV_WNDPROC));
                 return true;
             },
             Err(e) => {
@@ -96,7 +96,7 @@ extern "system" fn wnd_proc(
             }
             WM_NCDESTROY => {
                 info!("WM_NCDESTROY");
-                let result = transmute::<WNDPROC, isize>(PREV_WNDPROC);
+                let result = transmute::<WNDPROC, _>(PREV_WNDPROC);
                 SetWindowLongPtrW(window, GWLP_WNDPROC, result);
                 return DefWindowProcA(window, message, wparam, lparam);
             }

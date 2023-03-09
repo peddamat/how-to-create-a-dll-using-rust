@@ -6,6 +6,9 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib"]
 
+[build]
+target = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc"]
+
 [dependencies]
 log = "0.4.17"
 simple-logging = "2.0.2"
