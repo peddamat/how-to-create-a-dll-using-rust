@@ -7,6 +7,8 @@ use windows::{
     Win32::UI::WindowsAndMessaging::*,
 };
 
+use std::collections::HashMap;
+
 use std::mem::{transmute, MaybeUninit};
 use std::io::{Result, Error, ErrorKind};
 
@@ -35,7 +37,7 @@ fn attach() -> bool {
 
         match find_window_by_pid(GetCurrentProcessId()) {
             Ok(handle) => {
-                let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as _);
+                let result = SetWindowLongPtrW(handle, GWLP_WNDPROC, wnd_proc as isize);
                 PREV_WNDPROC = transmute::<_, WNDPROC>(result);
                 return true;
             },
@@ -62,6 +64,73 @@ fn detach() -> bool {
     false
 }
 
+fn is_maximized(hwnd: HWND) -> bool {
+    let style = unsafe { GetWindowLongPtrW(hwnd, GWL_STYLE) as u32 };
+    (style & !WS_MAXIMIZE.0) != style
+
+}
+
+struct SWP {
+    cmd: SET_WINDOW_POS_FLAGS,
+    name: &'static str
+}
+
+fn check_style(flags: SET_WINDOW_POS_FLAGS) {
+
+    let styles = vec![
+        SWP { cmd: SWP_HIDEWINDOW     , name: "SWP_HIDEWINDOW" },
+        SWP { cmd: SWP_NOACTIVATE     , name: "SWP_NOACTIVATE" },
+        SWP { cmd: SWP_NOCOPYBITS     , name: "SWP_NOCOPYBITS" },
+        SWP { cmd: SWP_NOMOVE         , name: "SWP_NOMOVE" },
+        SWP { cmd: SWP_NOOWNERZORDER  , name: "SWP_NOOWNERZORDER" },
+        SWP { cmd: SWP_NOREDRAW       , name: "SWP_NOREDRAW" },
+        SWP { cmd: SWP_NOREPOSITION   , name: "SWP_NOREPOSITION" },
+        SWP { cmd: SWP_NOSENDCHANGING , name: "SWP_NOSENDCHANG" },
+        SWP { cmd: SWP_NOSIZE         , name: "SWP_NOSIZE" },
+        SWP { cmd: SWP_NOZORDER       , name: "SWP_NOZORDER" },
+        SWP { cmd: SWP_SHOWWINDOW     , name: "SWP_SHOWWINDOW" },
+    ];
+
+    let mut found = Vec::new();
+
+    for i in styles {
+        if (flags & !i.cmd ) != flags {
+            found.push(i.name);
+        }
+    }
+    info!("- flags: {:?}", found);
+}
+
+// WS_BORDER
+// WS_CAPTION
+// WS_CHILD
+// WS_CHILDWINDOW
+// WS_CLIPCHILDREN
+// WS_CLIPSIBLINGS
+// WS_DISABLED
+// WS_DLGFRAME
+// WS_GROUP
+// WS_HSCROLL
+// WS_ICONIC
+// WS_MAXIMIZE
+// WS_MAXIMIZEBOX
+// WS_MINIMIZE
+// WS_MINIMIZEBOX
+// WS_OVERLAPPED
+// WS_OVERLAPPEDWIN
+// WS_POPUP
+// WS_POPUPWINDOW
+// WS_SIZEBOX
+// WS_SYSMENU
+// WS_TABSTOP
+// WS_THICKFRAME
+// WS_TILED
+// WS_TILEDWINDOW
+// WS_VISIBLE
+// WS_VSCROLL
+
+static mut once:bool = false;
+
 extern "system" fn wnd_proc(
 	window: HWND,
 	message: u32,
@@ -70,29 +139,56 @@ extern "system" fn wnd_proc(
 ) -> LRESULT {
     unsafe {
         match message {
-            WM_PAINT => {
-                info!("WM_PAINT");
-                let mut msg =  String::from("ZOMG!");
-                let mut ps = PAINTSTRUCT::default();
-                let psp = &mut ps as *mut PAINTSTRUCT;
-                let rectp = &mut ps.rcPaint as *mut RECT;
-                let hdc = BeginPaint(window, psp);
-                let brush = CreateSolidBrush(COLORREF(0x0000F0F0));
-                FillRect(hdc, &ps.rcPaint, brush);
-                DrawTextA(hdc,
-                    msg.as_bytes_mut(),
-                    rectp,
-                    DT_SINGLELINE | DT_CENTER | DT_VCENTER
-                );
-                EndPaint(window, &ps);
-                return LRESULT(0);
-            }
+            // WM_WINDOWPOSCHANGING events are generated when a window is being sized
+            // or moved.  If the window is maximized, we override the default behavior
+            // and manually define the window's size and position.
             WM_WINDOWPOSCHANGING => {
-                info!("WM_WINDOWPOSCHANGING");
                 let data = lparam.0 as *mut WINDOWPOS;
                 let data = data.as_mut().unwrap();
-                data.flags |= SWP_NOSIZE | SWP_NOMOVE;
+
+                // The system sets the WS_MAXIMIZE style prior to posting a
+                // WM_WINDOWPOSCHANGING message, which is convenient for us...
+                if is_maximized(window) && !once {
+                    info!("[WM_WINDOWPOSCHANGING] hwnd: {:#x}, hwndInsertAfter: {:#x}, x: {}, y: {}, cx: {}, cy: {}",
+                        data.hwnd.0,
+                        data.hwndInsertAfter.0,
+                        data.x,
+                        data.y,
+                        data.cx,
+                        data.cy,
+                    );
+                    check_style(data.flags);
+                    // once = true;
+                    data.flags |= SWP_NOSIZE | SWP_NOMOVE;
+                    return LRESULT(0);
+                }
+                // else if !is_maximized(window) && once {
+                //     once = false;
+                // }
+            }
+            WM_STYLECHANGING => {
+                let data = lparam.0 as *mut STYLESTRUCT;
+                let data = data.as_mut().unwrap();
+
+                info!("WM_STYLECHANGING: styleOld {:?}", dbg!(data.styleOld));
+                info!("WM_STYLECHANGING: styleNew {:?}", dbg!(data.styleNew));
                 return LRESULT(0);
+            }
+            WM_NCCALCSIZE => {
+                if IsZoomed(window).as_bool() {
+                    let nc_params = lparam.0 as *mut NCCALCSIZE_PARAMS;
+                    let nc_params = nc_params.as_mut().unwrap();
+                    let rg_rcs = nc_params.rgrc;
+
+                    // I have no clue why this works, but it prevents Chrome and Brave's
+                    // titlebars from quirking, while also allowing GitKraken's titlebar
+                    // to not disappear...
+                    let r2 = rg_rcs[1];
+                    let r3 = rg_rcs[2];
+                    if r2.top == r3.top {
+                        return LRESULT((WVR_ALIGNTOP | WVR_HREDRAW | WVR_VREDRAW) as _);
+                    }
+                }
             }
             WM_NCDESTROY => {
                 info!("WM_NCDESTROY");
